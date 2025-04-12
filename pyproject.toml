@@ -7,7 +7,16 @@ authors = [
     { name = "Victor Staack", email = "victor.staack@proton.me" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "dbt-duckdb==1.6.2",
+    "duckdb>=1.2.2",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.1",
+    "numpy>=2.2.4",
+    "pandas>=2.2.3",
+    "scipy>=1.15.2",
+    "seaborn>=0.13.2",
+]
 
 [project.scripts]
 dbt-case = "dbt_case:main"
