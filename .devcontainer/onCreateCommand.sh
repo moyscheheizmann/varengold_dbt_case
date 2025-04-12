@@ -37,6 +37,13 @@ find .devcontainer/ -type f -print0 | xargs -0 dos2unix
 cp .devcontainer/bash/.bashrc ~/.bashrc
 cp .devcontainer/bash/.git-completion.bash ~/.git-completion.bash
 cp .devcontainer/bash/.git-prompt.sh ~/.git-prompt.sh
+
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Make uv available in PATH
+echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+
 source ~/.bashrc
 
 # setup git
