@@ -29,6 +29,7 @@ fi
 # setup terminal
 apt update -y
 apt install dos2unix wget unzip -y --no-install-recommends
+apt install -y curl
 wget https://github.com/duckdb/duckdb/releases/download/v0.9.1/duckdb_cli-linux-amd64.zip --directory-prefix="/root/"
 unzip -o /root/duckdb_cli-linux-amd64.zip -d /usr/local/bin
 rm /root/duckdb_cli-linux-amd64.zip
@@ -42,7 +43,7 @@ cp .devcontainer/bash/.git-prompt.sh ~/.git-prompt.sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Make uv available in PATH
-echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 source ~/.bashrc
 
