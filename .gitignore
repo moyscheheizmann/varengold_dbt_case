@@ -13,7 +13,7 @@ logs/
 .env
 venv/
 .vscode/
-*.ipynb
+# *.ipynb
 .ipynb_checkpoints
 secrets.json
 .DS_Store
