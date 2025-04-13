@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: customer_transactions_summary
+    description: "Sum of all transactions in EUR per customer, account, branch and date"
+    columns:
+      - name: transaction_date
+        description: "Date of the transaction"
+        tests:
+          - not_null
+      - name: customer_id
+        description: "The customer who owns the account"
+        tests:
+          - not_null
+      - name: account_id
+        description: "The account associated with the transaction"
+        tests:
+          - not_null
+      - name: branch_id
+        description: "The branch where the account is held"
+        tests:
+          - not_null
+      - name: total_amount_eur
+        description: "Sum of transaction amounts in EUR"
+        tests:
+          - not_null
+      - name: total_transactions
+        description: "Count of transactions"
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - transaction_date
+            - customer_id
+            - account_id
+            - branch_id
