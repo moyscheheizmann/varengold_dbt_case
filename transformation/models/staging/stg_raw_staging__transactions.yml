@@ -14,24 +14,34 @@ models:
           - unique
 
       - name: transaction_date
-        data_type: date
-        description: ""
-
+        data_type: varchar 
+        description: "Date of the transaction unparsed"
       - name: account_id
         data_type: integer
-        description: ""
-
+        description: "ID of the account associated with the transaction"
+        constraints:
+          - type: foreign_key
+            to: ref('stg_raw_staging__accounts')
+            to_columns: account_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_raw_staging__accounts')
+              field: account_id
       - name: transaction_type
         data_type: varchar
-        description: ""
-
+        description: "Type of transaction"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['transfer', 'deposit', 'withdrawal']
       - name: transaction_amount
         data_type: varchar
         description: ""
 
       - name: transaction_currency
         data_type: varchar
-        description: ""
+        description: "ISO code of the currency used in the transaction"
         constraints:
           - type: foreign_key
             to: ref('stg_raw_staging__fx_rates')

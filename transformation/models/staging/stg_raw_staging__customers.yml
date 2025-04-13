@@ -12,15 +12,22 @@ models:
         tests:
           - not_null
           - unique
-
       - name: firstname
         data_type: varchar
-        description: ""
-
+        description: "First name of the customer"
       - name: lastname
         data_type: varchar
-        description: ""
-
+        description: "Last name of the customer"
       - name: age
         data_type: integer
-        description: ""
+        description: "Age of the customer"
+        tests:
+          - not_null
+          - numeric_range:
+              min: 18
+              max: 200
+      - name: branch_id
+        data_type: integer
+        description: "ID of the branch where the customer is associated"
+        tests:
+          - not_null
