@@ -8,6 +8,7 @@ This package contains modules for exploring DuckDB tables including:
 - Data quality analysis
 - Data cleaning
 - Visualization
+- Relationship validation
 """
 
 from dbt_case.data_exploration.id_analyzer import IDAnalyzer
@@ -17,6 +18,7 @@ from dbt_case.data_exploration.data_quality import DataQualityAnalyzer
 from dbt_case.data_exploration.data_cleaner import DataCleaner
 from dbt_case.data_exploration.plotting import Plotter
 from dbt_case.data_exploration.utils import execute_query
+from dbt_case.data_exploration.relationship_validator import RelationshipValidator
 
 __all__ = [
     'IDAnalyzer',
@@ -25,6 +27,7 @@ __all__ = [
     'DataQualityAnalyzer',
     'DataCleaner',
     'Plotter',
-    'execute_query'
+    'execute_query',
+    'RelationshipValidator'
 ]
 
