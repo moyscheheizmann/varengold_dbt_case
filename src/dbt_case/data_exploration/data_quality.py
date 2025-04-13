@@ -8,13 +8,12 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple, Union
 
-
 class DataQualityAnalyzer:
     """
     Class for analyzing data quality issues in a DataFrame.
     
     This class provides methods to detect and analyze data quality issues
-    such as incorrect formats, invalid values, etc.
+    such as incorrect formats, invalid values, whitespace issues, etc.
     """
     
     def __init__(self, df: pd.DataFrame):
@@ -40,7 +39,8 @@ class DataQualityAnalyzer:
         """
         recommendations = {
             'numeric_columns': [],
-            'date_columns': []
+            'date_columns': [],
+            'whitespace_columns': []  # New category for whitespace issues
         }
         
         # Patterns for detection
@@ -70,16 +70,156 @@ class DataQualityAnalyzer:
                 ))
                 date_pattern_ratio = date_pattern_count / sample_size
                 
+                # Check for whitespace issues
+                whitespace_count = sum(sample.apply(
+                    lambda x: (x != x.strip()) if isinstance(x, str) else False
+                ))
+                whitespace_ratio = whitespace_count / sample_size
+                
                 # Make recommendations
                 if german_number_ratio > 0.5:
                     recommendations['numeric_columns'].append(col)
                 if date_pattern_ratio > 0.5:
                     recommendations['date_columns'].append(col)
+                if whitespace_ratio > 0:  # Even a single instance is worth flagging
+                    recommendations['whitespace_columns'].append(col)
         
         return recommendations
     
+    def check_whitespace_issues(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Checks all string columns for leading and trailing whitespace issues.
+        
+        Returns:
+        --------
+        dict
+            Dictionary with analysis results for each string column
+        """
+        results = {}
+        
+        # Loop through all columns
+        for col in self.df.columns:
+            # Only check string/object columns
+            if self.df[col].dtype != 'object':
+                continue
+                
+            # Initialize result dictionary for this column
+            results[col] = {
+                'total_values': len(self.df),
+                'non_null_values': self.df[col].notnull().sum(),
+                'leading_whitespace_count': 0,
+                'trailing_whitespace_count': 0,
+                'both_sides_whitespace_count': 0,
+                'examples': []
+            }
+            
+            # Check each non-null value
+            for i, value in enumerate(self.df[col]):
+                if pd.isna(value) or not isinstance(value, str):
+                    continue
+                    
+                has_leading = value.startswith(' ') or value.startswith('\t') or value.startswith('\n')
+                has_trailing = value.endswith(' ') or value.endswith('\t') or value.endswith('\n')
+                
+                # Update counts
+                if has_leading and has_trailing:
+                    results[col]['both_sides_whitespace_count'] += 1
+                elif has_leading:
+                    results[col]['leading_whitespace_count'] += 1
+                elif has_trailing:
+                    results[col]['trailing_whitespace_count'] += 1
+                
+                # If it has whitespace issues, add to examples (up to 5)
+                if (has_leading or has_trailing) and len(results[col]['examples']) < 5:
+                    results[col]['examples'].append({
+                        'index': i,
+                        'original': repr(value),
+                        'stripped': repr(value.strip()),
+                        'issue': 'both' if (has_leading and has_trailing) else ('leading' if has_leading else 'trailing')
+                    })
+            
+            # Calculate totals
+            results[col]['total_whitespace_issues'] = (
+                results[col]['leading_whitespace_count'] + 
+                results[col]['trailing_whitespace_count'] + 
+                results[col]['both_sides_whitespace_count']
+            )
+            
+            # Calculate percentage
+            non_null_count = results[col]['non_null_values']
+            if non_null_count > 0:
+                results[col]['whitespace_percentage'] = (results[col]['total_whitespace_issues'] / non_null_count) * 100
+            else:
+                results[col]['whitespace_percentage'] = 0
+                
+            # Remove columns with no issues
+            if results[col]['total_whitespace_issues'] == 0:
+                del results[col]
+        
+        return results
+    
+    def print_whitespace_analysis(self, results: Dict[str, Dict[str, Any]]) -> None:
+        """
+        Prints the whitespace analysis results in a readable format.
+        
+        Parameters:
+        -----------
+        results : dict
+            Results from check_whitespace_issues function
+        """
+        if not results:
+            print("No whitespace issues found in any string columns.")
+            return
+            
+        print("Whitespace Issues Analysis")
+        print("=========================")
+        
+        for col, data in results.items():
+            print(f"\nColumn: {col}")
+            print(f"  Total values: {data['total_values']}")
+            print(f"  Non-null values: {data['non_null_values']}")
+            print(f"  Total whitespace issues: {data['total_whitespace_issues']} ({data['whitespace_percentage']:.2f}%)")
+            print(f"    Leading whitespace only: {data['leading_whitespace_count']}")
+            print(f"    Trailing whitespace only: {data['trailing_whitespace_count']}")
+            print(f"    Both leading and trailing: {data['both_sides_whitespace_count']}")
+            
+            if data['examples']:
+                print("\n  Examples:")
+                for ex in data['examples']:
+                    print(f"    Index {ex['index']}: {ex['original']} → {ex['stripped']} ({ex['issue']} whitespace)")
+    
+    def clean_whitespace(self, columns: List[str] = None) -> pd.DataFrame:
+        """
+        Removes leading and trailing whitespace from string columns.
+        
+        Parameters:
+        -----------
+        columns : list, optional
+            List of column names to clean. If None, cleans all string columns.
+            
+        Returns:
+        --------
+        pandas.DataFrame
+            DataFrame with cleaned whitespace
+        """
+        # Create a copy to avoid modifying the original
+        result_df = self.df.copy()
+        
+        # If no columns specified, find all string columns
+        if columns is None:
+            columns = [col for col in result_df.columns if result_df[col].dtype == 'object']
+        
+        # Clean whitespace in specified columns
+        for col in columns:
+            if col in result_df.columns and result_df[col].dtype == 'object':
+                result_df[col] = result_df[col].apply(
+                    lambda x: x.strip() if isinstance(x, str) else x
+                )
+        
+        return result_df
+    
     def show_samples_with_cleaning(self, n_samples: int = 5, clean_numeric: bool = True, 
-                                 clean_dates: bool = True) -> None:
+                                 clean_dates: bool = True, clean_whitespace: bool = True) -> None:
         """
         Displays sample values for each column, along with suggested cleaned values.
         
@@ -91,11 +231,14 @@ class DataQualityAnalyzer:
             Whether to suggest cleaning for numeric values
         clean_dates : bool, default=True
             Whether to suggest cleaning for date values
+        clean_whitespace : bool, default=True
+            Whether to suggest cleaning for whitespace issues
         """
         # Analyze data quality
         recommendations = self.analyze_data_quality()
         numeric_columns = recommendations['numeric_columns'] if clean_numeric else []
         date_columns = recommendations['date_columns'] if clean_dates else []
+        whitespace_columns = recommendations['whitespace_columns'] if clean_whitespace else []
         
         # Get samples
         samples = {}
@@ -122,11 +265,12 @@ class DataQualityAnalyzer:
             # Determine if column needs cleaning
             needs_numeric_cleaning = col in numeric_columns
             needs_date_cleaning = col in date_columns
+            needs_whitespace_cleaning = col in whitespace_columns
             
             print(f"{col} ({dtype}):")
             
             for i, val in enumerate(values, 1):
-                print(f"  {i}. Original: {val}")
+                print(f"  {i}. Original: {repr(val)}")
                 
                 # Show cleaned numeric value
                 if needs_numeric_cleaning and isinstance(val, str):
@@ -142,6 +286,11 @@ class DataQualityAnalyzer:
                             print(f"     Cleaned date: {cleaned_date.isoformat()[:10]} (format: {date_format})")
                         except:
                             print(f"     Cleaned date: [conversion failed]")
+                
+                # Show cleaned whitespace value
+                if needs_whitespace_cleaning and isinstance(val, str):
+                    if val != val.strip():
+                        print(f"     Cleaned whitespace: {repr(val.strip())}")
             
             print()
         
@@ -154,6 +303,9 @@ class DataQualityAnalyzer:
         
         if date_columns:
             print(f"Columns that should be converted from mixed date formats: {date_columns}")
+            
+        if whitespace_columns:
+            print(f"Columns with leading/trailing whitespace issues: {whitespace_columns}")
     
     def validate_email(self, email: Any) -> Tuple[bool, Optional[str]]:
         """
