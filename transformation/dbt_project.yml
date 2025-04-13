@@ -35,7 +35,18 @@ models:
     main:
       +schema: main
       +materialized: table
-    
 
-vars:
+seeds:
+  vg_casestudy: 
+    +schema: staging
+    currencies:
+      +schema: staging
+    
+flags:
+  # https://docs.getdbt.com/docs/dbt-commands/run#flags
+  # https://docs.getdbt.com/docs/dbt-commands/run#--full-refresh
+  full-refresh: true
+  # https://docs.getdbt.com/docs/dbt-commands/run#--fail-fast
+  fail-fast: true
+  send_anonymous_usage_stats: stg_staging_inter...
   "dbt_date:time_zone": "Europe/Berlin"

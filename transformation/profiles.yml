@@ -1,9 +1,6 @@
 # https://docs.getdbt.com/reference/warehouse-profiles/bigquery-profile
 # https://docs.getdbt.com/reference/warehouse-setups/sqlite-setup
 
-config:
-    send_anonymous_usage_stats: False
-
 default:
   outputs:
     dev:
