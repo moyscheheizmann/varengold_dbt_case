@@ -6,10 +6,16 @@
 
 ## Issues
 ### General
-
 ### Table Relas
 
-- __Todo__: check relationships
+- ALL RELATIONSHIPS VALID: Referential integrity is maintained across all tables
+- CURRENCY COVERAGE INVALID
+    - Distinct currencies in transactions: 15
+    - Distinct currencies in fx_rates: 15
+    - __INVALID__: Found 1 transaction currencies without FX rates
+    - Transactions affected: 1 (0.00%)
+    - Missing currencies:
+        - RON1
 
 ### Column Formatting
 
