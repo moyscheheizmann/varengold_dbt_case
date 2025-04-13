@@ -27,10 +27,10 @@ class DataQualityAnalyzer:
         """
         self.df = df
     
-    def analyze_data_quality(self) -> Dict[str, List[str]]:
+    def analyze_data_quality(self) -> Dict[str, Any]:
         """
         Analyzes a DataFrame to detect columns that might need cleaning.
-        Returns recommendations for cleaning.
+        Returns recommendations for cleaning, including counts of date formats.
         
         Returns:
         --------
@@ -40,15 +40,21 @@ class DataQualityAnalyzer:
         recommendations = {
             'numeric_columns': [],
             'date_columns': [],
-            'whitespace_columns': []  # New category for whitespace issues
+            'whitespace_columns': [],  # Category for whitespace issues
+            'date_format_counts': {}   # New category for date format counts
         }
         
         # Patterns for detection
         german_number_pattern = r'^[0-9]+(\.[0-9]{3})*(,[0-9]+)?$'
         date_patterns = [
-            r'\d{1,2}/\d{1,2}/\d{4}',  # DD/MM/YYYY or MM/DD/YYYY
-            r'\d{1,2}\.\d{1,2}\.\d{4}',  # DD.MM.YYYY
-            r'\d{4}-\d{1,2}-\d{1,2}',  # YYYY-MM-DD
+            {'pattern': r'\d{1,2}/\d{1,2}/\d{4}', 'format': 'DD/MM/YYYY or MM/DD/YYYY'},
+            {'pattern': r'\d{1,2}\.\d{1,2}\.\d{4}', 'format': 'DD.MM.YYYY'},
+            {'pattern': r'\d{4}-\d{1,2}-\d{1,2}', 'format': 'YYYY-MM-DD'},
+            {'pattern': r'\d{1,2}-\d{1,2}-\d{4}', 'format': 'DD-MM-YYYY'},
+            {'pattern': r'\d{4}/\d{1,2}/\d{1,2}', 'format': 'YYYY/MM/DD'},
+            {'pattern': r'\d{1,2}\s+[a-zA-Z]{3,}\s+\d{4}', 'format': 'DD Month YYYY'},
+            {'pattern': r'[a-zA-Z]{3,}\s+\d{1,2},?\s+\d{4}', 'format': 'Month DD, YYYY'},
+            {'pattern': r'\d{8}', 'format': 'YYYYMMDD or DDMMYYYY'}
         ]
         
         for col in self.df.columns:
@@ -64,10 +70,17 @@ class DataQualityAnalyzer:
                 german_number_count = sum(sample.str.match(german_number_pattern))
                 german_number_ratio = german_number_count / sample_size
                 
-                # Check for date patterns
-                date_pattern_count = sum(sample.apply(
-                    lambda x: any(re.search(pattern, x) for pattern in date_patterns)
-                ))
+                # Check for date patterns and count formats
+                date_counts = {fmt['format']: 0 for fmt in date_patterns}
+                date_pattern_count = 0
+                
+                for value in sample:
+                    for pattern_info in date_patterns:
+                        if re.search(pattern_info['pattern'], value):
+                            date_pattern_count += 1
+                            date_counts[pattern_info['format']] += 1
+                            break
+                
                 date_pattern_ratio = date_pattern_count / sample_size
                 
                 # Check for whitespace issues
@@ -81,10 +94,111 @@ class DataQualityAnalyzer:
                     recommendations['numeric_columns'].append(col)
                 if date_pattern_ratio > 0.5:
                     recommendations['date_columns'].append(col)
+                    # Store counts of each date format
+                    recommendations['date_format_counts'][col] = {
+                        fmt: count for fmt, count in date_counts.items() if count > 0
+                    }
                 if whitespace_ratio > 0:  # Even a single instance is worth flagging
                     recommendations['whitespace_columns'].append(col)
         
         return recommendations
+    
+    def analyze_date_formats(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Analyzes and counts different date formats in date columns.
+        
+        Returns:
+        --------
+        dict
+            Dictionary with columns as keys and counts of each date format as values
+        """
+        # First get columns that might contain dates
+        recommendations = self.analyze_data_quality()
+        date_columns = recommendations['date_columns']
+        
+        results = {}
+        
+        # Define common date format patterns
+        date_formats = [
+            {'pattern': r'^\d{1,2}/\d{1,2}/\d{4}$', 'format': 'DD/MM/YYYY or MM/DD/YYYY'},
+            {'pattern': r'^\d{1,2}\.\d{1,2}\.\d{4}$', 'format': 'DD.MM.YYYY'},
+            {'pattern': r'^\d{4}-\d{1,2}-\d{1,2}$', 'format': 'YYYY-MM-DD'},
+            {'pattern': r'^\d{1,2}-\d{1,2}-\d{4}$', 'format': 'DD-MM-YYYY'},
+            {'pattern': r'^\d{4}/\d{1,2}/\d{1,2}$', 'format': 'YYYY/MM/DD'},
+            {'pattern': r'^\d{1,2}\s+[a-zA-Z]{3,}\s+\d{4}$', 'format': 'DD Month YYYY'},
+            {'pattern': r'^[a-zA-Z]{3,}\s+\d{1,2},?\s+\d{4}$', 'format': 'Month DD, YYYY'},
+            {'pattern': r'^\d{8}$', 'format': 'YYYYMMDD or DDMMYYYY'}
+        ]
+        
+        for col in date_columns:
+            results[col] = {'total_non_null': 0, 'format_counts': {}, 'unrecognized': 0}
+            
+            # Initialize format counts
+            for fmt in date_formats:
+                results[col]['format_counts'][fmt['format']] = 0
+            
+            # Count each non-null value
+            non_null_values = self.df[col].dropna()
+            results[col]['total_non_null'] = len(non_null_values)
+            
+            for val in non_null_values:
+                if not isinstance(val, str):
+                    continue
+                    
+                val = val.strip()
+                recognized = False
+                
+                # Check against each format pattern
+                for fmt in date_formats:
+                    if re.match(fmt['pattern'], val):
+                        results[col]['format_counts'][fmt['format']] += 1
+                        recognized = True
+                        break
+                
+                # Count unrecognized formats
+                if not recognized:
+                    results[col]['unrecognized'] += 1
+            
+            # Remove formats with zero counts
+            results[col]['format_counts'] = {k: v for k, v in results[col]['format_counts'].items() if v > 0}
+            
+            # Sort by frequency, most common first
+            results[col]['format_counts'] = dict(sorted(
+                results[col]['format_counts'].items(), 
+                key=lambda item: item[1], 
+                reverse=True
+            ))
+        
+        return results
+    
+    def print_date_format_analysis(self, results: Dict[str, Dict[str, Any]]) -> None:
+        """
+        Prints the date format analysis results in a readable format.
+        
+        Parameters:
+        -----------
+        results : dict
+            Results from analyze_date_formats function
+        """
+        if not results:
+            print("No date columns identified in the DataFrame.")
+            return
+            
+        print("Date Format Analysis")
+        print("===================")
+        
+        for col, data in results.items():
+            print(f"\nColumn: {col}")
+            print(f"  Total non-null values: {data['total_non_null']}")
+            
+            print("  Date formats detected:")
+            for fmt, count in data['format_counts'].items():
+                percentage = (count / data['total_non_null']) * 100 if data['total_non_null'] > 0 else 0
+                print(f"    {fmt}: {count} ({percentage:.2f}%)")
+            
+            if data['unrecognized'] > 0:
+                unrecognized_pct = (data['unrecognized'] / data['total_non_null']) * 100 if data['total_non_null'] > 0 else 0
+                print(f"  Unrecognized formats: {data['unrecognized']} ({unrecognized_pct:.2f}%)")
     
     def check_whitespace_issues(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -303,6 +417,14 @@ class DataQualityAnalyzer:
         
         if date_columns:
             print(f"Columns that should be converted from mixed date formats: {date_columns}")
+            
+            # Print date format counts for each column
+            print("\nDate format distribution:")
+            for col, formats in recommendations.get('date_format_counts', {}).items():
+                print(f"  {col}:")
+                for fmt, count in formats.items():
+                    if count > 0:
+                        print(f"    {fmt}: {count}")
             
         if whitespace_columns:
             print(f"Columns with leading/trailing whitespace issues: {whitespace_columns}")
